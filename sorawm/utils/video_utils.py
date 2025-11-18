@@ -1,8 +1,9 @@
 from pathlib import Path
+from typing import List
+
+import numpy as np
 
 import ffmpeg
-import numpy as np
-from typing import List
 
 
 class VideoLoader:
@@ -35,7 +36,7 @@ class VideoLoader:
     def get_slice(self, start: int, end: int) -> List[np.ndarray]:
         num_frames = end - start
         if num_frames <= 0:
-            return []        
+            return []
         start_time = start / self.fps
         process_in = (
             ffmpeg.input(self.video_path, ss=start_time)
@@ -43,7 +44,7 @@ class VideoLoader:
             .global_args("-loglevel", "error")
             .run_async(pipe_stdout=True)
         )
-        
+
         frames = []
         try:
             for _ in range(num_frames):
@@ -59,9 +60,8 @@ class VideoLoader:
             if process_in.stderr:
                 process_in.stderr.close()
             process_in.wait()
-        
+
         return frames
-    
 
     def __iter__(self):
         process_in = (

@@ -1,15 +1,16 @@
+import hashlib
+import json
 from pathlib import Path
 
 import requests
 from loguru import logger
 from tqdm import tqdm
-import hashlib
-import json
-from sorawm.configs import WATER_MARK_DETECT_YOLO_WEIGHTS, WATER_MARK_DETECT_YOLO_WEIGHTS_HASH_JSON
+
+from sorawm.configs import (WATER_MARK_DETECT_YOLO_WEIGHTS,
+                            WATER_MARK_DETECT_YOLO_WEIGHTS_HASH_JSON)
 
 DETECTOR_URL = "https://github.com/linkedlist771/SoraWatermarkCleaner/releases/download/V0.0.1/best.pt"
 REMOTE_MODEL_VERSION_URL = "https://raw.githubusercontent.com/linkedlist771/SoraWatermarkCleaner/refs/heads/main/model_version.json"
-
 
 
 def ensure_model_downloaded(model_path: Path, url: str, force_download: bool = False):
@@ -31,7 +32,7 @@ def ensure_model_downloaded(model_path: Path, url: str, force_download: bool = F
                             pbar.update(len(chunk))
             if model_path.exists():
                 model_path.unlink()
-            temp_file.rename(model_path)    
+            temp_file.rename(model_path)
             logger.success(f"✓ Model downloaded: {model_path}")
             return True
         except requests.exceptions.RequestException as e:
@@ -40,7 +41,6 @@ def ensure_model_downloaded(model_path: Path, url: str, force_download: bool = F
             raise RuntimeError(f"Download failed: {e}")
     else:
         logger.debug(f"Model already exists: {model_path}")
-
 
 
 def generate_sha256_hash(file_path: Path) -> str:
@@ -54,11 +54,11 @@ def _get_local_hash() -> str | None:
     if WATER_MARK_DETECT_YOLO_WEIGHTS_HASH_JSON.exists():
         with WATER_MARK_DETECT_YOLO_WEIGHTS_HASH_JSON.open("r") as f:
             return json.load(f).get("sha256")
-    
+
     if WATER_MARK_DETECT_YOLO_WEIGHTS.exists():
         logger.info(f"Generating SHA256 hash for {WATER_MARK_DETECT_YOLO_WEIGHTS}")
         return generate_sha256_hash(WATER_MARK_DETECT_YOLO_WEIGHTS)
-    
+
     return None
 
 
@@ -85,23 +85,27 @@ def download_detector_weights(force_download: bool = False):
     """Download detector weights with hash validation."""
     # If forced or file doesn't exist, download immediately
     if force_download or not WATER_MARK_DETECT_YOLO_WEIGHTS.exists():
-        ensure_model_downloaded(WATER_MARK_DETECT_YOLO_WEIGHTS, DETECTOR_URL, force_download=True)
+        ensure_model_downloaded(
+            WATER_MARK_DETECT_YOLO_WEIGHTS, DETECTOR_URL, force_download=True
+        )
         new_hash = generate_sha256_hash(WATER_MARK_DETECT_YOLO_WEIGHTS)
         _save_hash(new_hash)
         return
-    
+
     # File exists, check if update needed
     local_hash = _get_local_hash()
     remote_hash = _get_remote_hash()
-    
+
     # Save local hash if it was just generated
     if local_hash and not WATER_MARK_DETECT_YOLO_WEIGHTS_HASH_JSON.exists():
         _save_hash(local_hash)
-    
+
     # Compare hashes and update if needed
     if remote_hash and local_hash != remote_hash:
         logger.info("Hash mismatch detected, updating model...")
-        ensure_model_downloaded(WATER_MARK_DETECT_YOLO_WEIGHTS, DETECTOR_URL, force_download=True)
+        ensure_model_downloaded(
+            WATER_MARK_DETECT_YOLO_WEIGHTS, DETECTOR_URL, force_download=True
+        )
         _save_hash(remote_hash)
     else:
-        logger.debug("Model is up-to-date") 
+        logger.debug("Model is up-to-date")

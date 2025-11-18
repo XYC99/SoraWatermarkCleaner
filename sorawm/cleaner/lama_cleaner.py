@@ -35,4 +35,3 @@ class LamaCleaner:
         )
         inpaint_result = cv2.cvtColor(inpaint_result, cv2.COLOR_BGR2RGB)
         return inpaint_result
-

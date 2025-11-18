@@ -4,12 +4,12 @@
 import torch
 import torch.nn as nn
 
-
 try:
-    from mmcv.ops import ModulatedDeformConv2d, modulated_deform_conv2d
     from mmcv.cnn import constant_init
+    from mmcv.ops import ModulatedDeformConv2d, modulated_deform_conv2d
 except:
     from loguru import logger
+
     logger.warning("mmcv is not available, using a fallback implementation")
     import torch
     import torch.nn as nn
@@ -18,16 +18,15 @@ except:
     # Fallback: constant_init function
     def constant_init(module, val=0, bias=0):
         """Initialize module parameters with constant values."""
-        if hasattr(module, 'weight') and module.weight is not None:
+        if hasattr(module, "weight") and module.weight is not None:
             nn.init.constant_(module.weight, val)
-        if hasattr(module, 'bias') and module.bias is not None:
+        if hasattr(module, "bias") and module.bias is not None:
             nn.init.constant_(module.bias, bias)
 
     def _pair(v):
         if isinstance(v, tuple):
             return v
         return (v, v)
-
 
     @torch.no_grad()
     def _compute_output_shape(H_in, W_in, kH, kW, stride, padding, dilation):
@@ -38,10 +37,18 @@ except:
         W_out = (W_in + 2 * pw - (dw * (kW - 1) + 1)) // sw + 1
         return H_out, W_out
 
-
-    def _modulated_deform_conv2d_core(x, offset, mask, weight, bias,
-                                    stride=1, padding=0, dilation=1,
-                                    groups=1, deform_groups=1):
+    def _modulated_deform_conv2d_core(
+        x,
+        offset,
+        mask,
+        weight,
+        bias,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        deform_groups=1,
+    ):
         """
         纯 PyTorch 版 Modulated Deformable Conv2d，支持 deform_groups
         x:      (N, C_in, H_in, W_in)
@@ -68,7 +75,9 @@ except:
         dh, dw = dilation
 
         # conv 输出空间大小
-        H_out, W_out = _compute_output_shape(H_in, W_in, kH, kW, stride, padding, dilation)
+        H_out, W_out = _compute_output_shape(
+            H_in, W_in, kH, kW, stride, padding, dilation
+        )
 
         # 检查 offset / mask 形状
         K = kH * kW
@@ -87,7 +96,7 @@ except:
         yy, xx = torch.meshgrid(
             torch.arange(H_out, device=device, dtype=dtype),
             torch.arange(W_out, device=device, dtype=dtype),
-            indexing='ij'
+            indexing="ij",
         )  # (H_out, W_out)
 
         # batch 索引，用于高级索引
@@ -106,7 +115,7 @@ except:
 
                     # 该 group 和 kernel 位置对应的 offset / mask 索引
                     offset_idx = g * K + k
-                    
+
                     # 常规 conv 的采样中心位置 p0 + p_n
                     base_y = yy * sh - ph + i * dh  # (H_out, W_out)
                     base_x = xx * sw - pw + j * dw  # (H_out, W_out)
@@ -126,8 +135,12 @@ except:
                     x1 = x0 + 1
 
                     # 是否在合法范围内（用于零填充）
-                    inside = (pos_y >= 0) & (pos_y <= H_in - 1) & \
-                            (pos_x >= 0) & (pos_x <= W_in - 1)
+                    inside = (
+                        (pos_y >= 0)
+                        & (pos_y <= H_in - 1)
+                        & (pos_x >= 0)
+                        & (pos_x <= W_in - 1)
+                    )
 
                     # clamp 之后再索引
                     y0c = y0.clamp(0, H_in - 1).long()
@@ -147,13 +160,17 @@ except:
                     wd = (wy1 * wx1)[:, None, :, :]
 
                     # 从 x_g 中取四个邻居值
-                    Ia = x_g[n_idx, :, y0c, x0c].permute(0, 3, 1, 2)  # (N, C_per_deform_group, H_out, W_out)
+                    Ia = x_g[n_idx, :, y0c, x0c].permute(
+                        0, 3, 1, 2
+                    )  # (N, C_per_deform_group, H_out, W_out)
                     Ib = x_g[n_idx, :, y0c, x1c].permute(0, 3, 1, 2)
                     Ic = x_g[n_idx, :, y1c, x0c].permute(0, 3, 1, 2)
                     Id = x_g[n_idx, :, y1c, x1c].permute(0, 3, 1, 2)
 
                     # 双线性插值
-                    sampled = Ia * wa + Ib * wb + Ic * wc + Id * wd  # (N, C_per_deform_group, H_out, W_out)
+                    sampled = (
+                        Ia * wa + Ib * wb + Ic * wc + Id * wd
+                    )  # (N, C_per_deform_group, H_out, W_out)
 
                     # 越界位置置 0
                     sampled = sampled * inside[:, None, :, :]
@@ -166,38 +183,61 @@ except:
                     w_ij = weight[:, c_start:c_end, i, j]  # (C_out, C_per_deform_group)
 
                     # 按公式累加：out += w_ij @ sampled
-                    out = out + torch.einsum('oc,nchw->nohw', w_ij, sampled)
+                    out = out + torch.einsum("oc,nchw->nohw", w_ij, sampled)
 
         if bias is not None:
             out = out + bias.view(1, -1, 1, 1)
 
         return out
 
-
-    def modulated_deform_conv2d(input, offset, mask, weight, bias=None,
-                                stride=1, padding=0, dilation=1,
-                                groups=1, deform_groups=1):
+    def modulated_deform_conv2d(
+        input,
+        offset,
+        mask,
+        weight,
+        bias=None,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        deform_groups=1,
+    ):
         """
         函数版接口，对齐 mmcv.ops.modulated_deform_conv2d
         """
         return _modulated_deform_conv2d_core(
-            input, offset, mask, weight, bias,
-            stride=stride, padding=padding, dilation=dilation,
-            groups=groups, deform_groups=deform_groups
+            input,
+            offset,
+            mask,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            deform_groups=deform_groups,
         )
-
 
     class ModulatedDeformConv2d(nn.Module):
         """
         纯 PyTorch 版 ModulatedDeformConv2d，接口对齐 mmcv.ops.ModulatedDeformConv2d
         支持 deform_groups，但仅支持 groups=1
-        
+
         forward(x, offset, mask) -> y
         """
 
-        def __init__(self, in_channels, out_channels, kernel_size,
-                    stride=1, padding=0, dilation=1,
-                    groups=1, deform_groups=1, bias=True):
+        def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            deform_groups=1,
+            bias=True,
+        ):
             super().__init__()
             self.in_channels = in_channels
             self.out_channels = out_channels
@@ -227,18 +267,27 @@ except:
 
         def forward(self, x, offset, mask):
             return _modulated_deform_conv2d_core(
-                x, offset, mask, self.weight, self.bias,
-                stride=self.stride, padding=self.padding,
-                dilation=self.dilation, groups=self.groups,
-                deform_groups=self.deform_groups
+                x,
+                offset,
+                mask,
+                self.weight,
+                self.bias,
+                stride=self.stride,
+                padding=self.padding,
+                dilation=self.dilation,
+                groups=self.groups,
+                deform_groups=self.deform_groups,
             )
+
+
 from sorawm.models.model.modules.flow_comp import flow_warp
 
 
 class SecondOrderDeformableAlignment(ModulatedDeformConv2d):
     """Second-order deformable alignment module."""
+
     def __init__(self, *args, **kwargs):
-        self.max_residue_magnitude = kwargs.pop('max_residue_magnitude', 10)
+        self.max_residue_magnitude = kwargs.pop("max_residue_magnitude", 10)
 
         super(SecondOrderDeformableAlignment, self).__init__(*args, **kwargs)
 
@@ -263,37 +312,41 @@ class SecondOrderDeformableAlignment(ModulatedDeformConv2d):
         o1, o2, mask = torch.chunk(out, 3, dim=1)
 
         # offset
-        offset = self.max_residue_magnitude * torch.tanh(
-            torch.cat((o1, o2), dim=1))
+        offset = self.max_residue_magnitude * torch.tanh(torch.cat((o1, o2), dim=1))
         offset_1, offset_2 = torch.chunk(offset, 2, dim=1)
-        offset_1 = offset_1 + flow_1.flip(1).repeat(1,
-                                                    offset_1.size(1) // 2, 1,
-                                                    1)
-        offset_2 = offset_2 + flow_2.flip(1).repeat(1,
-                                                    offset_2.size(1) // 2, 1,
-                                                    1)
+        offset_1 = offset_1 + flow_1.flip(1).repeat(1, offset_1.size(1) // 2, 1, 1)
+        offset_2 = offset_2 + flow_2.flip(1).repeat(1, offset_2.size(1) // 2, 1, 1)
         offset = torch.cat([offset_1, offset_2], dim=1)
 
         # mask
         mask = torch.sigmoid(mask)
 
-        return modulated_deform_conv2d(x, offset, mask, self.weight, self.bias,
-                                       self.stride, self.padding,
-                                       self.dilation, self.groups,
-                                       self.deform_groups)
+        return modulated_deform_conv2d(
+            x,
+            offset,
+            mask,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+            self.deform_groups,
+        )
 
 
 class BidirectionalPropagation(nn.Module):
     def __init__(self, channel):
         super(BidirectionalPropagation, self).__init__()
-        modules = ['backward_', 'forward_']
+        modules = ["backward_", "forward_"]
         self.deform_align = nn.ModuleDict()
         self.backbone = nn.ModuleDict()
         self.channel = channel
 
         for i, module in enumerate(modules):
             self.deform_align[module] = SecondOrderDeformableAlignment(
-                2 * channel, channel, 3, padding=1, deform_groups=16)
+                2 * channel, channel, 3, padding=1, deform_groups=16
+            )
 
             self.backbone[module] = nn.Sequential(
                 nn.Conv2d((2 + i) * channel, channel, 3, 1, 1),
@@ -310,18 +363,17 @@ class BidirectionalPropagation(nn.Module):
         """
         b, t, c, h, w = x.shape
         feats = {}
-        feats['spatial'] = [x[:, i, :, :, :] for i in range(0, t)]
+        feats["spatial"] = [x[:, i, :, :, :] for i in range(0, t)]
 
-        for module_name in ['backward_', 'forward_']:
-
+        for module_name in ["backward_", "forward_"]:
             feats[module_name] = []
 
             frame_idx = range(0, t)
             flow_idx = range(-1, t - 1)
-            mapping_idx = list(range(0, len(feats['spatial'])))
+            mapping_idx = list(range(0, len(feats["spatial"])))
             mapping_idx += mapping_idx[::-1]
 
-            if 'backward' in module_name:
+            if "backward" in module_name:
                 frame_idx = frame_idx[::-1]
                 flows = flows_backward
             else:
@@ -329,7 +381,7 @@ class BidirectionalPropagation(nn.Module):
 
             feat_prop = x.new_zeros(b, self.channel, h, w)
             for i, idx in enumerate(frame_idx):
-                feat_current = feats['spatial'][mapping_idx[idx]]
+                feat_current = feats["spatial"][mapping_idx[idx]]
 
                 if i > 0:
                     flow_n1 = flows[:, flow_idx[i], :, :, :]
@@ -343,31 +395,36 @@ class BidirectionalPropagation(nn.Module):
                         feat_n2 = feats[module_name][-2]
                         flow_n2 = flows[:, flow_idx[i - 1], :, :, :]
                         flow_n2 = flow_n1 + flow_warp(
-                            flow_n2, flow_n1.permute(0, 2, 3, 1))
-                        cond_n2 = flow_warp(feat_n2,
-                                            flow_n2.permute(0, 2, 3, 1))
+                            flow_n2, flow_n1.permute(0, 2, 3, 1)
+                        )
+                        cond_n2 = flow_warp(feat_n2, flow_n2.permute(0, 2, 3, 1))
 
                     cond = torch.cat([cond_n1, feat_current, cond_n2], dim=1)
                     feat_prop = torch.cat([feat_prop, feat_n2], dim=1)
-                    feat_prop = self.deform_align[module_name](feat_prop, cond,
-                                                               flow_n1,
-                                                               flow_n2)
+                    feat_prop = self.deform_align[module_name](
+                        feat_prop, cond, flow_n1, flow_n2
+                    )
 
-                feat = [feat_current] + [
-                    feats[k][idx]
-                    for k in feats if k not in ['spatial', module_name]
-                ] + [feat_prop]
+                feat = (
+                    [feat_current]
+                    + [
+                        feats[k][idx]
+                        for k in feats
+                        if k not in ["spatial", module_name]
+                    ]
+                    + [feat_prop]
+                )
 
                 feat = torch.cat(feat, dim=1)
                 feat_prop = feat_prop + self.backbone[module_name](feat)
                 feats[module_name].append(feat_prop)
 
-            if 'backward' in module_name:
+            if "backward" in module_name:
                 feats[module_name] = feats[module_name][::-1]
 
         outputs = []
         for i in range(0, t):
-            align_feats = [feats[k].pop(0) for k in feats if k != 'spatial']
+            align_feats = [feats[k].pop(0) for k in feats if k != "spatial"]
             align_feats = torch.cat(align_feats, dim=1)
             outputs.append(self.fusion(align_feats))
 

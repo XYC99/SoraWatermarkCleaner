@@ -36,5 +36,3 @@ DATA_PATH = ROOT / "data"
 DATA_PATH.mkdir(exist_ok=True, parents=True)
 
 SQLITE_PATH = DATA_PATH / "db.sqlite3"
-
-
