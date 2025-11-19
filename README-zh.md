@@ -4,19 +4,33 @@
 
 这个项目提供了一种优雅的方式来移除 Sora2 生成视频中的 Sora 水印。
 
+
 <table>
   <tr>
-    <td width="33%">
-      <h3 align="center">快速移除</h3>
-      <video src="https://github.com/user-attachments/assets/8cdc075e-7d15-4d04-8fa2-53dd287e5f4c" width="100%"></video>
+    <td width="20%">
+      <strong>Case1(25s)</strong>
     </td>
-    <td width="33%">
-      <h3 align="center">更好的移除效果</h3>
-      <video src="https://github.com/user-attachments/assets/4f032fc7-97da-471b-9a54-9de2a434fa57" width="100%"></video>
+    <td width="80%">
+      <video src="https://github.com/user-attachments/assets/55f4e822-a356-4fab-a372-8910e4cb3c28" 
+             width="100%" controls></video>
     </td>
-       <td width="33%">
-      <h3 align="center">原始视频</h3>
-      <video src="https://github.com/user-attachments/assets/4f032fc7-97da-471b-9a54-9de2a434fa57" width="100%"></video>
+  </tr>
+  <tr>
+    <td>
+      <strong>Case2(10s)</strong>
+    </td>
+    <td>
+      <video src="https://github.com/user-attachments/assets/2773df41-62dc-4876-bd2f-4dd3ccac4b9e" 
+             width="100%" controls></video>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>Case3(10s)</strong>
+    </td>
+    <td>
+      <video src="https://github.com/user-attachments/assets/2bdba310-6379-48f2-a93c-6de857c4df3d" 
+             width="100%" controls></video>
     </td>
   </tr>
 </table>
